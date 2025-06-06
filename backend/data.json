@@ -1,0 +1,66 @@
+{
+  "paths": [
+    {
+      "id": "easy",
+      "title": "Easy Path",
+      "modules": [
+        {
+          "id": "intro-to-dfir",
+          "title": "Intro to Digital Forensics",
+          "tasks": [
+            {
+              "id": "dfir1",
+              "type": "quiz",
+              "content": "Digital forensics involves collecting, preserving and analyzing digital evidence.",
+              "question": "Which discipline deals with analyzing digital evidence?",
+              "answer": "digital forensics",
+              "hint": "It starts with 'digital'"
+            },
+            {
+              "id": "dfir2",
+              "type": "quiz",
+              "content": "The first step of an investigation is identifying potential evidence sources.",
+              "question": "Name the initial phase involving locating possible evidence.",
+              "answer": "identification",
+              "hint": "Starts with 'ident'"
+            },
+            {
+              "id": "dfir3",
+              "type": "quiz",
+              "content": "After identification, data must be preserved to avoid change.",
+              "question": "Which phase ensures data remains unchanged?",
+              "answer": "preservation",
+              "hint": "It rhymes with 'reservation'"
+            },
+            {
+              "id": "dfir4",
+              "type": "quiz",
+              "content": "Specialized tools are used to analyze the collected data.",
+              "question": "What step involves using tools to inspect the data?",
+              "answer": "analysis",
+              "hint": "Think 'analysis'"
+            },
+            {
+              "id": "dfir5",
+              "type": "quiz",
+              "content": "Keeping track of who handled evidence is called maintaining the chain of custody.",
+              "question": "What term describes the documented history of evidence handling?",
+              "answer": "chain of custody",
+              "hint": "It contains the word 'chain'"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "intermediate",
+      "title": "Intermediate Path",
+      "modules": []
+    },
+    {
+      "id": "advanced",
+      "title": "Advanced Path",
+      "modules": []
+    }
+  ]
+}
