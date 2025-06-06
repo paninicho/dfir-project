@@ -4,19 +4,66 @@
   <meta charset="UTF-8" />
   <title>CyberSec Learning</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
-    .container { padding: 20px; }
-    .path-list li { margin: 5px 0; cursor: pointer; color: blue; }
-    .task { margin-bottom: 20px; }
-    .quiz input { margin-right: 10px; }
-    #score { font-weight: bold; margin-bottom: 15px; }
-    .hint { margin-left: 10px; color: green; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #121212;
+      color: #e0e0e0;
+    }
+    header.hero {
+      background: #2b2b2b url('banner.jpg') center/cover no-repeat;
+      padding: 40px 20px;
+      text-align: center;
+    }
+    header.hero h1 {
+      margin: 0;
+      font-size: 2.5em;
+      color: #ff3366;
+    }
+    header.hero p {
+      margin-top: 10px;
+    }
+    .container {
+      padding: 20px;
+    }
+    .path-list li {
+      margin: 8px 0;
+      cursor: pointer;
+      color: #1abc9c;
+    }
+    .task {
+      margin-bottom: 20px;
+    }
+    .quiz input {
+      margin-right: 10px;
+    }
+    #score {
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+    .hint {
+      margin-left: 10px;
+      color: #9ae19d;
+    }
+    .auth input {
+      margin: 5px;
+      padding: 5px;
+    }
+    .auth button {
+      margin: 5px;
+      padding: 5px 10px;
+    }
   </style>
 </head>
 <body>
+  <header class="hero">
+    <h1>Cyber Security Lab</h1>
+    <p>Train your DFIR skills like TryHackMe!</p>
+  </header>
   <div class="container">
-    <h1>Cyber Security Platform</h1>
-    <div id="score">Score: 0</div>
+    <div id="auth" class="auth"></div>
+    <div id="score" style="display:none">Score: 0</div>
     <div id="content"></div>
   </div>
   <script src="app.js"></script>
