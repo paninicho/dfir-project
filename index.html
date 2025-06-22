@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis Core - Cyber Security Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap');
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        
+        body { font-family: 'Pretendard', sans-serif; background-color: #110f1c; overflow-x: hidden; }
+        .font-orbitron { font-family: 'Orbitron', sans-serif; }
+        #app { perspective: 1500px; }
+        
+        .loader { border: 4px solid #4a5568; border-top: 4px solid #2dd4bf; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .nav-link.active { background-color: #0d9488; color: white; }
+        
+        .animate-fade-in { animation: fadeIn 0.8s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .background-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+        .content-overlay { position: relative; z-index: 1; }
+        
+        .solid-card {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            transition: transform 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
+            transform-style: preserve-3d;
+        }
+        .solid-card:hover {
+            transform: translateY(-5px) scale(1.03);
+            box-shadow: 0 0 25px rgba(45, 212, 191, 0.2);
+            border-color: rgba(45, 212, 191, 0.4);
+        }
+        .prose-custom img { max-width: 100%; border-radius: 0.5rem; margin-top: 1.5rem; margin-bottom: 1.5rem; }
+    </style>
+</head>
+<body class="bg-gray-950 text-white">
+
+    <div id="app"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        const app = document.getElementById('app');
+        const API_BASE_URL = 'http://localhost:5000/api';
+        const state = {
+            isAuthenticated: false, user: null, token: localStorage.getItem('token'),
+            paths: [], currentPath: null, currentRoom: null, activeTask: null,
+        };
+
+        let currentAnimation = { id: null, cleanup: () => {} };
+
+        function runAnimation(animationFunc) {
+            currentAnimation.cleanup();
+            currentAnimation = animationFunc();
+        }
+        function cleanupContent() {
+            if (currentAnimation.id) {
+                cancelAnimationFrame(currentAnimation.id);
+            }
+            currentAnimation.cleanup();
+            currentAnimation = { id: null, cleanup: () => {} };
+            app.innerHTML = '';
+        }
+
+        function initLandingAnimation() {
+            let scene, camera, renderer, composer, mouse, clock, grid;
+            const canvas = document.createElement('canvas');
+            canvas.id = 'landing-canvas';
+            canvas.className = 'background-canvas';
+            document.body.insertBefore(canvas, document.body.firstChild);
+            
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 20);
+            mouse = new THREE.Vector2();
+            clock = new THREE.Clock();
+
+            renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            const renderScene = new RenderPass(scene, camera);
+            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.5, 0.1);
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+            
+            grid = new THREE.GridHelper(200, 50, 0x38bdf8, 0x6366f1);
+            grid.position.y = -10;
+            scene.add(grid);
+
+            let animId;
+            const animate = () => {
+                animId = requestAnimationFrame(animate);
+                grid.rotation.y += clock.getDelta() * 0.05;
+                camera.position.x += (mouse.x * 5 - camera.position.x) * 0.05;
+                camera.position.y += (-mouse.y * 5 - camera.position.y) * 0.05;
+                camera.lookAt(0,0,0);
+                composer.render();
+            };
+
+            const onMouseMove = e => {
+                mouse.x = (e.clientX / window.innerWidth - 0.5);
+                mouse.y = (e.clientY / window.innerHeight - 0.5);
+            };
+            const onResize = () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                composer.setSize(window.innerWidth, window.innerHeight);
+            };
+
+            document.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('resize', onResize);
+            animate();
+
+            return { id: animId, cleanup: () => {
+                if (animId) cancelAnimationFrame(animId);
+                document.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('resize', onResize);
+                if (canvas.parentNode) canvas.remove();
+            }};
+        }
+        
+        async function apiFetch(endpoint, method = 'GET', body = null) {
+            const headers = { 'Content-Type': 'application/json' };
+            if (state.token) headers['x-auth-token'] = state.token;
+            const config = { method, headers };
+            if (body) config.body = JSON.stringify(body);
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ msg: 'Server communication error' }));
+                    throw new Error(errorData.msg);
+                }
+                if (response.status === 204) return null;
+                return await response.json();
+            } catch (error) { console.error('API Fetch Error:', error); throw error; }
+        }
+
+        const FullScreenLoader = () => `<div class="fixed inset-0 bg-[#0d1117] flex justify-center items-center z-50"><div class="loader"></div></div>`;
+
+        const LandingPageTemplate = () => `
+            <div class="h-screen w-screen flex flex-col content-overlay animate-fade-in">
+                <header class="p-8 flex justify-between items-center">
+                    <div class="flex items-center gap-3"><i data-lucide="shield-check" class="w-8 h-8 text-teal-400"></i><span class="font-orbitron text-xl font-bold">AEGIS CORE</span></div>
+                    <nav class="flex items-center gap-6 text-gray-300">
+                         <a href="#/login" class="hover:text-white transition-colors">로그인</a>
+                         <a href="#/register" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">회원가입</a>
+                    </nav>
+                </header>
+                <main class="flex-grow flex flex-col items-center justify-center text-center px-4">
+                    <h1 class="font-orbitron text-5xl md:text-7xl font-black uppercase">Transform Your Cyber Journey</h1>
+                    <p class="text-lg md:text-xl text-gray-400 mt-4 max-w-2xl">Experience enhanced security, speed, and convenience with our cutting-edge cyber security learning wallet.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16 w-full max-w-5xl">
+                        <div class="solid-card p-8 rounded-2xl flex flex-col items-center text-center">
+                            <i data-lucide="shield" class="w-12 h-12 text-teal-400 mb-4"></i><h3 class="font-bold text-xl mb-2">Fundamental Security</h3><p class="text-gray-400 text-sm">Build a solid foundation with core security principles.</p>
+                        </div>
+                        <div class="solid-card p-8 rounded-2xl flex flex-col items-center text-center">
+                             <i data-lucide="code-2" class="w-12 h-12 text-teal-400 mb-4"></i><h3 class="font-bold text-xl mb-2">Hands-on Labs</h3><p class="text-gray-400 text-sm">Apply your knowledge in realistic, simulated environments.</p>
+                        </div>
+                        <div class="solid-card p-8 rounded-2xl flex flex-col items-center text-center">
+                             <i data-lucide="graduation-cap" class="w-12 h-12 text-teal-400 mb-4"></i><h3 class="font-bold text-xl mb-2">Guided Learning</h3><p class="text-gray-400 text-sm">Follow structured paths to advance your skills logically.</p>
+                        </div>
+                    </div>
+                </main>
+            </div>`;
+        
+        const AuthPageTemplate = (isRegister, error = '') => `
+            <div class="h-screen w-screen flex flex-col justify-center items-center p-4 content-overlay animate-fade-in">
+                <div class="w-full max-w-md bg-[#161b22]/80 backdrop-blur-sm p-8 rounded-2xl shadow-lg border border-[#30363d]">
+                    <a href="#/" class="text-gray-400 hover:text-white mb-4 flex items-center gap-2"><i data-lucide="arrow-left"></i> 홈으로</a>
+                    <h2 class="text-3xl font-bold text-center text-teal-400 mb-2">${isRegister ? '회원가입' : '로그인'}</h2>
+                    ${error ? `<p class="bg-red-500/20 text-red-300 p-3 rounded-md text-center my-4">${error}</p>` : ''}
+                    <form id="auth-form">
+                        ${isRegister ? `<div class="mb-4 relative"><i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5"></i><input type="text" name="username" placeholder="사용자 이름" required class="w-full bg-gray-800 p-3 pl-10 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500"/></div>` : ''}
+                        <div class="mb-4 relative"><i data-lucide="mail" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5"></i><input type="email" name="email" placeholder="이메일 주소" required class="w-full bg-gray-800 p-3 pl-10 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500"/></div>
+                        <div class="mb-6 relative"><i data-lucide="lock" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5"></i><input type="password" name="password" placeholder="비밀번호" required minLength="6" class="w-full bg-gray-800 p-3 pl-10 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500"/></div>
+                        <button type="submit" class="w-full bg-teal-600 font-bold py-3 rounded-lg hover:bg-teal-700 transition-colors"> ${isRegister ? '계정 생성' : '로그인'}</button>
+                    </form>
+                    <p class="text-center text-gray-400 mt-6">${isRegister ? "이미 계정이 있으신가요? " : "계정이 없으신가요? "}<a href="${isRegister ? '#/login' : '#/register'}" class="text-teal-400 hover:text-teal-300 font-semibold">${isRegister ? '로그인' : '회원가입'}</a></p>
+                </div>
+            </div>`;
+        
+        const MainLayoutTemplate = (page) => `
+            <div class="flex h-screen bg-[#0d1117]">
+                <nav class="w-20 hover:w-64 transition-all duration-300 bg-gray-900 border-r border-gray-800 p-4 flex flex-col group">
+                    <a href="#/dashboard" class="flex items-center gap-3 mb-10 h-12"><i data-lucide="shield-check" class="w-10 h-10 text-teal-400 flex-shrink-0"></i><span class="font-orbitron text-xl font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-200">AEGIS CORE</span></a>
+                    <ul class="space-y-3">
+                        <li><a href="#/dashboard" class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors ${page === 'dashboard' ? 'active' : ''}"><i data-lucide="layout-dashboard" class="w-6 h-6 flex-shrink-0"></i><span class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">대시보드</span></a></li>
+                        <li><a href="#/profile" class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors ${page === 'profile' ? 'active' : ''}"><i data-lucide="user-circle" class="w-6 h-6 flex-shrink-0"></i><span class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">프로필</span></a></li>
+                        <li><a href="#/about" class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors ${page === 'about' ? 'active' : ''}"><i data-lucide="info" class="w-6 h-6 flex-shrink-0"></i><span class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">About</span></a></li>
+                    </ul>
+                    <div class="mt-auto">
+                        <div class="p-2 group-hover:p-4 bg-gray-800 rounded-lg text-center transition-all duration-300">
+                            <p class="text-sm text-gray-400 opacity-0 group-hover:opacity-100 h-0 group-hover:h-auto transition-opacity duration-200">${state.user?.username || 'User'}</p>
+                            <p class="text-xs text-yellow-400 opacity-0 group-hover:opacity-100 h-0 group-hover:h-auto transition-opacity duration-200">${state.user?.points || 0} Points</p>
+                            <button id="logout-btn" class="w-full text-sm mt-0 group-hover:mt-4 bg-red-600/80 hover:bg-red-600 px-3 py-1.5 rounded-md"><i data-lucide="log-out" class="w-5 h-5 mx-auto group-hover:hidden"></i><span class="hidden group-hover:inline">로그아웃</span></button>
+                        </div>
+                    </div>
+                </nav>
+                <main id="main-content" class="flex-1 overflow-y-auto p-4 sm:p-8"></main>
+            </div>`;
+
+        const DashboardPageTemplate = () => `
+            <div class="animate-fade-in">
+                <div class="p-8 mb-8 rounded-2xl glass-card">
+                    <h1 class="font-orbitron text-4xl font-bold">Welcome, ${state.user.username}!</h1>
+                    <p class="text-gray-300 mt-2">Continue your journey to master the digital realm.</p>
+                </div>
+                <h2 class="text-3xl font-bold mb-6 font-orbitron">Learning Paths</h2>
+                <div id="paths-container" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8"></div>
+            </div>`;
+
+        const ProfilePageTemplate = () => {
+            if (!state.user) return `<div class="text-center text-gray-400">사용자 정보를 불러오는 중...</div>`;
+            return `
+             <div class="animate-fade-in">
+                <h1 class="text-4xl font-bold mb-8 font-orbitron">Profile</h1>
+                <div class="glass-card p-8 rounded-2xl max-w-2xl mx-auto">
+                    <div class="flex flex-col sm:flex-row items-center gap-6 mb-8 text-center sm:text-left">
+                         <div class="w-24 h-24 bg-teal-500 rounded-full flex items-center justify-center text-gray-900 text-4xl font-bold flex-shrink-0">${state.user.username.charAt(0).toUpperCase()}</div>
+                         <div><h2 class="text-3xl font-bold">${state.user.username}</h2><p class="text-gray-400">${state.user.email}</p></div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div class="glass-card p-6 rounded-lg text-center"><p class="text-sm text-gray-400">Total Points</p><p class="text-3xl font-bold text-yellow-400">${state.user.points}</p></div>
+                        <div class="glass-card p-6 rounded-lg text-center"><p class="text-sm text-gray-400">Quizzes Solved</p><p class="text-3xl font-bold">${(state.user.solvedQuizzes || []).length}</p></div>
+                    </div>
+                </div>
+            </div>`;
+        }
+        
+        const AboutPageTemplate = () => `
+             <div class="animate-fade-in max-w-4xl mx-auto">
+                <h1 class="text-4xl font-bold mb-8 font-orbitron">About Aegis Core</h1>
+                <div class="prose prose-custom prose-lg max-w-none"><h2>Our Mission</h2><p>Aegis Core aims to demystify cyber security, providing an accessible and engaging environment for everyone to learn practical, real-world skills. We bridge the gap between theory and practice through interactive challenges and immersive scenarios.</p><h2>What Can You Learn?</h2><p>Our platform covers a wide range of topics including web and system hacking, network analysis, and digital forensics. Each learning path is carefully crafted to guide you from fundamental concepts to advanced techniques, allowing you to learn at your own pace.</p></div>
+            </div>`;
+        
+        const PathPageTemplate = (path) => `
+            <div class="animate-fade-in">
+                <a href="#/dashboard" class="flex items-center gap-2 text-teal-400 mb-6 hover:text-teal-300"><i data-lucide="arrow-left" class="w-5 h-5"></i> All Learning Paths</a>
+                <h1 class="text-4xl font-bold mb-2">${path.title}</h1>
+                <p class="text-gray-400 text-lg mb-8">${path.description}</p>
+                <div id="rooms-container" class="space-y-4"></div>
+            </div>`;
+        
+        const RoomPageTemplate = (pathId) => `
+            <div class="flex h-screen bg-gray-900 font-sans">
+                <div id="room-sidebar" class="w-full md:w-1/3 lg:w-1/4 bg-gray-900 p-6 border-r border-gray-800 flex flex-col">
+                    <a href="#/path/${pathId}" class="flex items-center gap-2 text-teal-400 mb-6 hover:text-teal-300"><i data-lucide="arrow-left" class="w-5 h-5"></i> Back to Rooms</a>
+                    <div id="sidebar-content" class="overflow-y-auto"></div>
+                </div>
+                <main id="task-content-wrapper" class="w-full md:w-2/3 lg:w-3/4 p-8 overflow-y-auto relative bg-[#0d1117]"></main>
+            </div>`;
+
+        function renderPage(pageName, contentTemplate) {
+            const mainLayout = document.querySelector('nav')?.closest('.flex.h-screen');
+            if (!mainLayout || app.innerHTML.includes('content-overlay')) {
+                app.innerHTML = MainLayoutTemplate(pageName);
+            }
+            document.getElementById('main-content').innerHTML = contentTemplate;
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === `#/${pageName}`) link.classList.add('active');
+            });
+            document.getElementById('logout-btn')?.addEventListener('click', logout);
+            lucide.createIcons();
+        }
+
+        async function renderDashboardPage() {
+            cleanupContent();
+            renderPage('dashboard', DashboardPageTemplate());
+            const pathsContainer = document.getElementById('paths-container');
+            pathsContainer.innerHTML = `<div class="loader mx-auto"></div>`;
+            try {
+                state.paths = await apiFetch('/paths');
+                if (!state.paths || state.paths.length === 0) {
+                    pathsContainer.innerHTML = `<p class="text-gray-400 col-span-full">아직 생성된 학습 경로가 없습니다.</p>`; return;
+                }
+                pathsContainer.innerHTML = state.paths.map(path => {
+                    const levelStyles = {'초급': 'border-teal-400/50 text-teal-400 bg-teal-500/10', '중급': 'border-yellow-400/50 text-yellow-400 bg-yellow-500/10', '고급': 'border-red-400/50 text-red-400 bg-red-500/10'};
+                    return `
+                        <a href="#/path/${path._id}" class="path-card solid-card rounded-xl p-6 flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-start mb-4"><i data-lucide="book-open" class="text-teal-400"></i><span class="px-3 py-1 text-sm font-bold rounded-full border ${levelStyles[path.level]}">${path.level}</span></div>
+                                <h2 class="text-2xl font-bold mb-2">${path.title}</h2><p class="text-gray-400 mb-6">${path.description}</p>
+                            </div>
+                        </a>`;
+                }).join('');
+                lucide.createIcons();
+            } catch (error) { pathsContainer.innerHTML = `<p class="text-red-400">학습 경로 로딩 실패: ${error.message}</p>`;}
+        }
+        
+        function renderProfilePage() { cleanupContent(); renderPage('profile', ProfilePageTemplate()); }
+        function renderAboutPage() { cleanupContent(); renderPage('about', AboutPageTemplate()); }
+        
+        async function renderPathPage(pathId) {
+            cleanupContent();
+            if (!state.paths || state.paths.length === 0) {
+                try { state.paths = await apiFetch('/paths'); }
+                catch(e) { app.innerHTML = `<p class="p-8 text-red-400">데이터 로딩 실패</p>`; return; }
+            }
+            const path = state.paths.find(p => p._id === pathId);
+            if (!path) { app.innerHTML = `<p class="p-8 text-red-400">학습 경로를 찾을 수 없습니다.</p>`; return; }
+            state.currentPath = path;
+            
+            renderPage('dashboard', PathPageTemplate(path));
+            const roomsContainer = document.getElementById('rooms-container');
+            if (!path.rooms || path.rooms.length === 0) {
+                roomsContainer.innerHTML = `<div class="text-center py-16 solid-card rounded-lg"><p class="text-gray-400">이 경로에는 아직 학습 방이 없습니다.</p></div>`;
+            } else {
+                roomsContainer.innerHTML = path.rooms.map(room => `
+                    <a href="#/room/${room._id}" class="solid-card rounded-lg p-6 flex items-center justify-between hover:border-teal-400/50 transition-colors cursor-pointer">
+                        <div><h2 class="text-xl font-bold">${room.title}</h2><p class="text-gray-400 mt-1">${room.description}</p></div>
+                        <i data-lucide="chevron-right" class="w-6 h-6"></i>
+                    </a>`).join('');
+            }
+            lucide.createIcons();
+        }
+        
+        async function renderRoomPage(roomId) {
+            cleanupContent();
+            app.innerHTML = FullScreenLoader();
+            try {
+                const room = await apiFetch(`/rooms/${roomId}`);
+                state.currentRoom = room;
+                let pathId = state.currentPath?._id;
+                if (!pathId) {
+                     if (!state.paths || state.paths.length === 0) state.paths = await apiFetch('/paths');
+                     for (const path of state.paths) {
+                        if (path.rooms.some(r => r._id === roomId)) {
+                           pathId = path._id; state.currentPath = path; break;
+                        }
+                    }
+                }
+                
+                app.innerHTML = RoomPageTemplate(pathId);
+                const taskWrapper = document.getElementById('task-content-wrapper');
+                taskWrapper.innerHTML = `
+                    <div class="absolute top-6 right-8 flex items-center gap-4 bg-gray-800/50 p-2 pr-4 rounded-full">
+                        <div class="w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center text-gray-900 font-bold">${state.user.username.charAt(0).toUpperCase()}</div>
+                        <div><p class="font-bold -mb-1">${state.user.username}</p><p class="text-sm text-yellow-400">${state.user.points} Points</p></div>
+                    </div>
+                    <div id="task-container"></div>`;
+                renderRoomSidebar();
+                renderTaskContent(room.tasks[0]);
+            } catch (error) {
+                app.innerHTML = `<p class="p-8 text-red-400">학습 방 로딩 실패: ${error.message}</p>`;
+            }
+        }
+        
+        function renderRoomSidebar() {
+            const sidebar = document.getElementById('sidebar-content');
+            const room = state.currentRoom;
+            if(!room) return;
+            const isTaskComplete = (task) => {
+                if (!task.quizzes || task.quizzes.length === 0) return true;
+                return task.quizzes.every((quiz, index) => (state.user.solvedQuizzes || []).includes(`${task._id}-${index}`));
+            };
+            sidebar.innerHTML = `
+                <h1 class="text-2xl font-bold text-teal-400 mb-2">${room.title}</h1>
+                <p class="text-gray-400 mb-6 text-sm">${room.description}</p>
+                <ul>
+                    ${room.tasks.map((task, index) => `
+                        <li data-task-id="${task._id}" class="task-item p-3 my-2 rounded-lg cursor-pointer flex items-center justify-between transition-colors ${state.activeTask?._id === task._id ? 'bg-teal-600/80 text-white' : 'bg-gray-800 hover:bg-gray-700'}">
+                            <span>Task ${index + 1}: ${task.title}</span>
+                            ${isTaskComplete(task) ? '<i data-lucide="star" class="text-yellow-400 fill-current w-4 h-4"></i>' : ''}
+                        </li>`).join('')}
+                </ul>`;
+            document.querySelectorAll('.task-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const taskId = item.dataset.taskId;
+                    const task = state.currentRoom.tasks.find(t => t._id === taskId);
+                    renderTaskContent(task);
+                });
+            });
+            lucide.createIcons();
+        }
+
+        function renderTaskContent(task) {
+            state.activeTask = task;
+            const taskContainer = document.getElementById('task-container');
+            if(!task) { if(taskContainer) taskContainer.innerHTML = '<p>과제를 선택하세요.</p>'; return; }
+
+            const renderedHtmlContent = marked.parse(task.content || '');
+
+            taskContainer.innerHTML = `
+                <div class="animate-fade-in"><h2 class="text-3xl font-bold mb-4">${task.title}</h2>
+                <div class="prose prose-custom prose-invert max-w-none prose-pre:bg-gray-800 prose-p:text-gray-300 prose-blockquote:border-teal-500">${renderedHtmlContent}</div>
+                <div id="quizzes-container" class="mt-8 space-y-6">
+                ${(task.quizzes && task.quizzes.length > 0) ? task.quizzes.map((quiz, index) => {
+                    const quizId = `${task._id}-${index}`;
+                    const isSolved = (state.user.solvedQuizzes || []).includes(quizId);
+                    return `
+                    <div class="p-6 rounded-lg ${isSolved ? 'bg-green-900/50 border-green-500/30' : 'bg-gray-900 border-gray-800'} border">
+                        <form class="quiz-form" data-quiz-index="${index}">
+                            <div class="flex justify-between items-center"><h3 class="text-xl font-semibold mb-3 ${isSolved ? 'text-green-300' : 'text-teal-400'}">Quiz #${index + 1}</h3>${isSolved ? '<span class="text-yellow-400 font-bold">완료</span>' : ''}</div>
+                            <p class="mb-4">${quiz.question}</p>
+                            ${!isSolved ? `
+                            <div class="flex flex-col gap-4">
+                                <input type="text" name="answer" class="w-full p-3 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="정답 입력..." required>
+                                <div class="hint-display h-8 text-gray-400 font-mono text-lg tracking-widest flex items-center"></div>
+                                <div class="flex flex-col sm:flex-row items-center gap-4">
+                                    <button type="submit" class="w-full sm:w-auto flex-grow px-6 py-3 bg-teal-600 hover:bg-teal-700 rounded-md font-bold whitespace-nowrap">제출</button>
+                                    <button type="button" class="hint-btn w-full sm:w-auto px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-md font-bold whitespace-nowrap">힌트 보기</button>
+                                </div>
+                            </div>
+                            ` : `<p class="text-gray-400">정답: <span class="font-mono">${quiz.answer}</span></p>`}
+                            <div class="feedback-container mt-4"></div>
+                        </form>
+                    </div>`}).join('') : ''}
+                </div></div>`;
+            
+            document.querySelectorAll('.quiz-form').forEach(form => {
+                form.addEventListener('submit', async e => {
+                    e.preventDefault();
+                    const quizIndex = e.target.dataset.quizIndex;
+                    const answer = e.target.querySelector('[name="answer"]').value;
+                    const feedbackContainer = e.target.querySelector('.feedback-container');
+                    try {
+                        const result = await apiFetch(`/tasks/${task._id}/submit`, 'POST', { answer, quizIndex });
+                        if(result.correct) {
+                            state.user = result.user;
+                            renderTaskContent(task);
+                            const userPointsElement = document.querySelector('#task-content-wrapper .text-yellow-400');
+                            if(userPointsElement) userPointsElement.textContent = `${state.user.points} Points`;
+                        } else {
+                            feedbackContainer.innerHTML = `<p class="p-4 rounded-md bg-red-900 text-red-300">${result.msg}</p>`;
+                        }
+                    } catch(err) { feedbackContainer.innerHTML = `<p class="p-4 rounded-md bg-red-900 text-red-300">${err.message}</p>`; }
+                });
+            });
+            document.querySelectorAll('.hint-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const form = e.target.closest('.quiz-form');
+                    const quizIndex = form.dataset.quizIndex;
+                    const quiz = task.quizzes[quizIndex];
+                    const hintDisplay = form.querySelector('.hint-display');
+                    if (quiz.answer && hintDisplay.textContent === '') {
+                        hintDisplay.textContent = quiz.answer.replace(/[^\s]/g, '_');
+                        e.target.disabled = true; e.target.classList.add('opacity-50', 'cursor-not-allowed');
+                    }
+                });
+            });
+            
+            renderRoomSidebar();
+            document.querySelectorAll('pre code').forEach(hljs.highlightElement);
+        }
+
+        function renderLandingPage() {
+            cleanupContent();
+            runAnimation(initLandingAnimation);
+            app.innerHTML = LandingPageTemplate();
+            document.querySelectorAll('.solid-card').forEach(card => {
+                card.addEventListener('mousemove', e => {
+                    const rect = card.getBoundingClientRect();
+                    const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+                    const rotateX = (y / rect.height - 0.5) * -10; const rotateY = (x / rect.width - 0.5) * 10;
+                    card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+                });
+                card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+            });
+            lucide.createIcons();
+        }
+
+        const routes = {
+            '#/dashboard': renderDashboardPage,
+            '#/profile': renderProfilePage,
+            '#/about': renderAboutPage,
+            '#/path/': renderPathPage,
+            '#/room/': renderRoomPage,
+            '#/login': () => renderAuthPage(false),
+            '#/register': () => renderAuthPage(true),
+            '#/': renderLandingPage,
+        };
+        
+        async function router() {
+            const path = window.location.hash || '#/';
+            if (!state.isAuthenticated && !['#/', '#/login', '#/register'].includes(path)) {
+                 window.location.hash = '#/';
+                 return;
+            }
+             if (state.isAuthenticated && ['#/', '#/login', '#/register'].includes(path)) {
+                window.location.hash = '#/dashboard';
+                return;
+            }
+            const routeKey = Object.keys(routes).find(key => path.startsWith(key)) || '#/';
+            const renderFunc = routes[routeKey];
+            const param = routeKey.endsWith('/') ? path.substring(routeKey.length) : null;
+            try { await renderFunc(param); }
+            catch(err) { console.error("Routing Error:", err); app.innerHTML = `<p class="text-red-400 p-8">페이지를 로드할 수 없습니다: ${err.message}</p>`}
+        }
+
+        async function loadUser() { 
+            state.token = localStorage.getItem('token');
+            if (state.token) {
+                try {
+                    state.user = await apiFetch('/auth');
+                    state.isAuthenticated = true;
+                } catch (err) { logout(true); }
+            } else { state.isAuthenticated = false; }
+        }
+        function logout(isSilent = false) { 
+            cleanupContent();
+            localStorage.removeItem('token');
+            Object.assign(state, { isAuthenticated: false, user: null, token: null });
+            if (!isSilent) {
+                window.location.hash = '#/';
+                router();
+            }
+        }
+
+        function renderAuthPage(isRegister = false, error = '') {
+            cleanupContent();
+            runAnimation(initLandingAnimation);
+            app.innerHTML = AuthPageTemplate(isRegister, error);
+            document.getElementById('auth-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const data = Object.fromEntries(new FormData(e.target).entries());
+                try {
+                    const endpoint = isRegister ? '/auth/register' : '/auth/login';
+                    const result = await apiFetch(endpoint, 'POST', data);
+                    localStorage.setItem('token', result.token);
+                    await init();
+                } catch (err) {
+                    renderAuthPage(isRegister, err.message);
+                }
+            });
+            lucide.createIcons();
+        }
+
+        async function init() {
+            app.innerHTML = FullScreenLoader();
+            await loadUser();
+            window.addEventListener('hashchange', router);
+            await router();
+        }
+
+        init();
+    </script>
+</body>
+</html>

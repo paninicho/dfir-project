@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css">
+    <script src="https://unpkg.com/easymde/dist/easymde.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        body { background-color: #111827; color: white; font-family: 'Pretendard', sans-serif; }
+        .editor-toolbar, .EasyMDEContainer { border-color: #374151 !important; }
+        .CodeMirror { background-color: #1f2937 !important; border-color: #374151 !important; color: white; }
+        details > summary { list-style: none; cursor: pointer; }
+        details > summary::-webkit-details-marker { display: none; }
+        .drag-handle { cursor: grab; }
+        .sortable-ghost { background-color: #374151; opacity: 0.7; border-radius: 0.375rem; }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto p-4 sm:p-8">
+        <h1 class="text-4xl font-bold text-green-400 mb-8">콘텐츠 관리자 페이지</h1>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 flex flex-col">
+                <h2 class="text-2xl font-bold mb-4">학습 경로(Path)</h2>
+                <form id="path-form" class="flex flex-col flex-grow">
+                    <input type="hidden" name="_id">
+                    <input name="title" class="w-full bg-gray-700 p-2 rounded mb-2" placeholder="경로 제목" required>
+                    <textarea name="description" class="w-full bg-gray-700 p-2 rounded mb-2" placeholder="경로 설명" required></textarea>
+                    <select name="level" class="w-full bg-gray-700 p-2 rounded mb-4" required>
+                        <option value="초급">초급</option><option value="중급">중급</option><option value="고급">고급</option>
+                    </select>
+                    <div class="mt-auto">
+                        <button type="submit" class="w-full bg-blue-600 p-2 rounded hover:bg-blue-700">경로 저장</button>
+                        <button type="button" class="form-reset-btn w-full bg-gray-600 p-2 rounded hover:bg-gray-700 mt-2">새로 입력</button>
+                    </div>
+                </form>
+            </div>
+             <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 flex flex-col">
+                <h2 class="text-2xl font-bold mb-4">학습 방(Room)</h2>
+                <form id="room-form" class="flex flex-col flex-grow">
+                     <input type="hidden" name="_id">
+                    <select id="path-select" name="pathId" class="w-full bg-gray-700 p-2 rounded mb-2" required><option value="">경로 선택...</option></select>
+                    <input name="title" class="w-full bg-gray-700 p-2 rounded mb-2" placeholder="방 제목" required>
+                    <textarea name="description" class="w-full bg-gray-700 p-2 rounded mb-2" placeholder="방 설명" required></textarea>
+                    <input name="tags" class="w-full bg-gray-700 p-2 rounded mb-4" placeholder="태그 (쉼표로 구분: Web,SQL)">
+                    <div class="mt-auto">
+                        <button type="submit" class="w-full bg-blue-600 p-2 rounded hover:bg-blue-700">방 저장</button>
+                        <button type="button" class="form-reset-btn w-full bg-gray-600 p-2 rounded hover:bg-gray-700 mt-2">새로 입력</button>
+                    </div>
+                </form>
+            </div>
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 flex flex-col lg:col-span-3 xl:col-span-1">
+                 <h2 class="text-2xl font-bold mb-4">과제(Task)</h2>
+                <form id="task-form" class="flex flex-col flex-grow">
+                    <input type="hidden" name="_id">
+                    <input type="hidden" id="quizzes-data-input" name="quizzes">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+                        <select id="room-select" name="roomId" class="w-full bg-gray-700 p-2 rounded" required><option value="">방 선택...</option></select>
+                        <input name="title" class="w-full bg-gray-700 p-2 rounded" placeholder="과제 제목" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="text-sm text-gray-400">과제 내용 (마크다운 지원)</label>
+                        <textarea id="task-content-editor" name="content"></textarea>
+                    </div>
+                    <input type="file" id="hidden-image-input" class="hidden" accept="image/*">
+                    <button type="button" id="custom-image-upload-btn" class="mb-4 bg-gray-500 hover:bg-gray-600 p-2 rounded-md text-sm">이미지 첨부파일 추가</button>
+                    
+                    <h3 class="text-lg font-semibold mt-4 mb-2 border-t border-gray-700 pt-4">퀴즈 목록</h3>
+                    <div id="quiz-list-container" class="space-y-4 mb-4 max-h-48 overflow-y-auto p-2 bg-gray-900/50 rounded"></div>
+                    <button type="button" id="add-quiz-btn" class="mb-4 bg-indigo-600 hover:bg-indigo-700 p-2 rounded-md">퀴즈 추가</button>
+                    <div class="mt-auto">
+                        <button type="submit" class="w-full bg-blue-600 p-2 rounded hover:bg-blue-700">과제 저장</button>
+                        <button type="button" class="form-reset-btn w-full bg-gray-600 p-2 rounded hover:bg-gray-700 mt-2">새로 입력</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div id="feedback" class="mb-8 text-center h-6 transition-opacity duration-300"></div>
+
+        <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+             <h2 class="text-2xl font-bold mb-4">전체 콘텐츠 목록</h2>
+             <p class="text-sm text-gray-400 mb-4">목록의 핸들(::)을 드래그하여 순서를 변경할 수 있습니다.</p>
+             <div id="content-tree" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        const feedbackEl = document.getElementById('feedback');
+        let easyMDE;
+        const state = { paths: [], editing: null };
+
+        async function apiFetch(endpoint, method = 'GET', body = null) {
+            const headers = {};
+            if (!(body instanceof FormData)) {
+                headers['Content-Type'] = 'application/json';
+            }
+            const token = localStorage.getItem('token');
+            if (token) headers['x-auth-token'] = token;
+
+            const config = { method, headers };
+            if (body) {
+                config.body = (body instanceof FormData) ? body : JSON.stringify(body);
+            }
+            
+            const response = await fetch(`${API_URL}${endpoint}`, config);
+            if (response.status === 204) return null;
+            
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.msg || '요청 실패');
+            return data;
+        }
+
+        async function handleFormSubmit(e, type) {
+            e.preventDefault();
+            setFeedback('처리 중...', 'text-gray-400');
+            const form = e.target;
+            const data = Object.fromEntries(new FormData(form));
+            
+            if (type === 'task') {
+                data.content = easyMDE.value();
+                const quizzes = [];
+                document.querySelectorAll('#quiz-list-container .quiz-form-item').forEach(item => {
+                    const quiz = {};
+                    item.querySelectorAll('[data-quiz-key]').forEach(input => quiz[input.dataset.quizKey] = input.value);
+                    quizzes.push(quiz);
+                });
+                data.quizzes = JSON.stringify(quizzes);
+            }
+            if (data.tags) data.tags = data.tags.split(',').map(tag => tag.trim());
+
+            try {
+                const endpointType = type + 's';
+                if (state.editing && state.editing.type === endpointType) {
+                    await apiFetch(`/admin/${endpointType}/${state.editing.id}`, 'PUT', data);
+                    setFeedback(`${type} 수정 성공!`, 'text-green-400');
+                } else {
+                    await apiFetch(`/admin/${endpointType}`, 'POST', data);
+                    setFeedback(`${type} 생성 성공!`, 'text-green-400');
+                }
+                resetForm(form);
+                await loadAndRenderAll();
+            } catch (error) { setFeedback(`에러: ${error.message}`, 'text-red-400'); }
+        }
+
+        function renderContentTree() {
+            const container = document.getElementById('content-tree');
+            container.innerHTML = ''; 
+            if (!state.paths || state.paths.length === 0) {
+                container.innerHTML = '<p class="text-gray-400">생성된 경로가 없습니다. 먼저 학습 경로를 만들어보세요.</p>';
+                return;
+            }
+
+            const createControls = (type, id) => `
+                <div class="space-x-1 flex-shrink-0">
+                    <button data-action="edit" data-type="${type}" data-id="${id}" class="bg-yellow-600 hover:bg-yellow-700 px-2 py-1 rounded-md text-xs">수정</button>
+                    <button data-action="delete" data-type="${type}" data-id="${id}" class="bg-red-600 hover:bg-red-700 px-2 py-1 rounded-md text-xs">삭제</button>
+                </div>`;
+            
+            const pathList = document.createElement('div');
+            pathList.className = 'path-list space-y-2';
+            state.paths.forEach(path => {
+                const pathElement = document.createElement('div');
+                pathElement.className = 'bg-gray-700/50 rounded-lg path-item';
+                pathElement.setAttribute('data-path-id', path._id);
+                pathElement.innerHTML = `
+                    <details open>
+                        <summary class="flex justify-between items-center p-3 font-bold text-lg">
+                            <div class="flex items-center gap-2">
+                                 <span class="drag-handle text-gray-400 hover:text-white">::</span>
+                                <span>${path.title}</span>
+                                <span class="text-xs text-gray-400 font-medium">[Path]</span>
+                            </div>
+                            ${createControls('paths', path._id)}
+                        </summary>
+                        <div class="room-list pl-6 border-l-2 border-gray-600 ml-3 space-y-1 pb-2 pr-2" data-path-id="${path._id}">
+                            ${(path.rooms && path.rooms.length > 0) ? path.rooms.map(room => `
+                                <div class="room-item bg-gray-600/40 rounded-md" data-room-id="${room._id}">
+                                    <details open>
+                                        <summary class="flex justify-between items-center p-2 text-md">
+                                            <div class="flex items-center gap-2">
+                                                <span class="drag-handle text-gray-400 hover:text-white">::</span>
+                                                <span>${room.title}</span>
+                                                <span class="text-xs text-gray-400 font-medium">[Room]</span>
+                                            </div>
+                                            ${createControls('rooms', room._id)}
+                                        </summary>
+                                        <div class="task-list pl-6 border-l-2 border-gray-500 ml-3 space-y-1 pb-1 pr-1" data-room-id="${room._id}">
+                                            ${(room.tasks && room.tasks.length > 0) ? room.tasks.map(task => `
+                                                <div class="task-item flex justify-between items-center p-2 rounded-md text-sm bg-gray-500/30" data-task-id="${task._id}">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="drag-handle text-gray-400 hover:text-white">::</span>
+                                                        <span>${task.title}</span>
+                                                    </div>
+                                                    ${createControls('tasks', task._id)}
+                                                </div>
+                                            `).join('') : '<div class="p-2 text-sm text-gray-400">과제가 없습니다.</div>'}
+                                        </div>
+                                    </details>
+                                </div>`).join('') : '<div class="p-2 text-sm text-gray-400">학습 방이 없습니다.</div>'}
+                        </div>
+                    </details>`;
+                pathList.appendChild(pathElement);
+            });
+            container.appendChild(pathList);
+            initializeSortable();
+        }
+        
+        function updateSelectOptions() {
+             const pathSelect = document.getElementById('path-select');
+             const roomSelect = document.getElementById('room-select');
+             const currentPathId = pathSelect.value;
+             const currentRoomId = roomSelect.value;
+
+             pathSelect.innerHTML = '<option value="">경로 선택...</option>' + (state.paths || []).map(p => `<option value="${p._id}">${p.title}</option>`).join('');
+             roomSelect.innerHTML = '<option value="">방 선택...</option>';
+             (state.paths || []).forEach(p => {
+                 (p.rooms || []).forEach(r => {
+                     roomSelect.innerHTML += `<option value="${r._id}">[${p.title}] ${r.title}</option>`;
+                 });
+             });
+             pathSelect.value = currentPathId;
+             roomSelect.value = currentRoomId;
+        }
+
+        function createQuizFormElement(quiz = {}, index) {
+            return `
+                <div class="quiz-form-item bg-gray-700/50 p-4 rounded-lg border border-gray-600">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="font-bold">퀴즈 #${index + 1}</label>
+                        <button type="button" class="remove-quiz-btn text-red-400 hover:text-red-300">삭제</button>
+                    </div>
+                    <input class="w-full bg-gray-700 p-2 rounded mb-2" placeholder="질문" data-quiz-key="question" value="${quiz.question || ''}" required>
+                    <input class="w-full bg-gray-700 p-2 rounded mb-2" placeholder="정답" data-quiz-key="answer" value="${quiz.answer || ''}" required>
+                    <input type="number" class="w-full bg-gray-700 p-2 rounded" placeholder="점수" data-quiz-key="points" value="${quiz.points || 10}" required>
+                </div>`;
+        }
+        
+        function addQuizForm(quiz = {}) {
+            const container = document.getElementById('quiz-list-container');
+            const index = container.children.length;
+            const quizEl = document.createElement('div');
+            quizEl.innerHTML = createQuizFormElement(quiz, index);
+            container.appendChild(quizEl);
+        }
+
+        function handleTreeClick(e) {
+            const target = e.target.closest('button[data-action]');
+            if (!target) return;
+            const { action, type, id } = target.dataset;
+
+            if (action === 'delete') {
+                if (confirm(`'${type}' 항목을 정말 삭제하시겠습니까? 연관된 모든 하위 데이터가 함께 삭제됩니다.`)) {
+                     apiFetch(`/admin/${type}/${id}`, 'DELETE').then(() => {
+                        setFeedback(`${type.slice(0, -1)} 삭제 완료.`, 'text-green-400');
+                        loadAndRenderAll();
+                    }).catch(err => setFeedback(`삭제 실패: ${err.message}`, 'text-red-400'));
+                }
+            } else if (action === 'edit') {
+                 let itemToEdit, parentId;
+                 const formType = type.slice(0,-1);
+                 const form = document.getElementById(`${formType}-form`);
+                 resetForm(form);
+                 
+                 const findItem = (items, itemId) => items.find(i => i._id === itemId);
+
+                 if (type === 'paths') { itemToEdit = findItem(state.paths, id); } 
+                 else if (type === 'rooms') {
+                     state.paths.forEach(p => {
+                         const found = findItem(p.rooms || [], id);
+                         if (found) { itemToEdit = found; parentId = p._id; }
+                     });
+                 } else if (type === 'tasks') {
+                     state.paths.forEach(p => (p.rooms || []).forEach(r => {
+                         const found = findItem(r.tasks || [], id);
+                         if(found) { itemToEdit = found; parentId = r._id; }
+                     }));
+                 }
+
+                 if (!itemToEdit) return;
+                 state.editing = { type, id };
+                 
+                 Object.keys(itemToEdit).forEach(key => {
+                    const input = form.querySelector(`[name="${key}"]`);
+                    if (input) input.value = Array.isArray(itemToEdit[key]) ? itemToEdit[key].join(', ') : itemToEdit[key];
+                 });
+                 
+                 form.querySelector('input[name="_id"]').value = itemToEdit._id;
+                 if(type === 'rooms') form.querySelector('[name="pathId"]').value = parentId;
+                 if(type === 'tasks') form.querySelector('[name="roomId"]').value = parentId;
+                 
+                 if (type === 'tasks') {
+                    easyMDE.value(itemToEdit.content || '');
+                    const quizContainer = document.getElementById('quiz-list-container');
+                    quizContainer.innerHTML = '';
+                    (itemToEdit.quizzes || []).forEach(quiz => addQuizForm(quiz));
+                 }
+                 form.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+        
+        function resetForm(form) {
+            form.reset();
+            const idInput = form.querySelector('input[name="_id"]');
+            if(idInput) idInput.value = '';
+            if (form.id === 'task-form') {
+                easyMDE.value('');
+                document.getElementById('quiz-list-container').innerHTML = '';
+            }
+            state.editing = null;
+        }
+
+        function setFeedback(message, colorClass) {
+            feedbackEl.textContent = message;
+            feedbackEl.className = `mb-8 text-center h-6 transition-opacity duration-300 ${colorClass}`;
+            setTimeout(() => { feedbackEl.textContent = '' }, 4000);
+        }
+
+        function initializeSortable() {
+            new Sortable(document.querySelector('.path-list'), {
+                group: 'paths', animation: 150, handle: '.drag-handle', ghostClass: 'sortable-ghost',
+            });
+            document.querySelectorAll('.room-list').forEach(list => {
+                new Sortable(list, {
+                    group: 'rooms', animation: 150, handle: '.drag-handle', ghostClass: 'sortable-ghost',
+                    onEnd: async (evt) => {
+                        const pathId = evt.target.dataset.pathId;
+                        const orderedRoomIds = Array.from(evt.target.children).map(item => item.dataset.roomId).filter(Boolean);
+                        if (orderedRoomIds.length > 0) {
+                            try {
+                                setFeedback('순서 저장 중...', 'text-gray-400');
+                                await apiFetch(`/admin/paths/${pathId}/reorder-rooms`, 'PUT', { orderedRoomIds });
+                                setFeedback('방 순서가 저장되었습니다.', 'text-green-400');
+                                await loadAndRenderAll();
+                            } catch (error) { setFeedback(`순서 저장 실패: ${error.message}`, 'text-red-400'); }
+                        }
+                    }
+                });
+            });
+            document.querySelectorAll('.task-list').forEach(list => {
+                new Sortable(list, {
+                    group: 'tasks', animation: 150, handle: '.drag-handle', ghostClass: 'sortable-ghost',
+                    onEnd: async (evt) => {
+                        const roomId = evt.target.dataset.roomId;
+                        const taskItems = Array.from(evt.target.querySelectorAll('.task-item'));
+                        const orderedTaskIds = taskItems.map(item => item.dataset.taskId).filter(Boolean);
+                        if (orderedTaskIds.length > 0) {
+                            try {
+                                setFeedback('순서 저장 중...', 'text-gray-400');
+                                await apiFetch(`/admin/rooms/${roomId}/reorder-tasks`, 'PUT', { orderedTaskIds });
+                                setFeedback('과제 순서가 저장되었습니다.', 'text-green-400');
+                                await loadAndRenderAll();
+                            } catch (error) { setFeedback(`순서 저장 실패: ${error.message}`, 'text-red-400'); }
+                        }
+                    }
+                });
+            });
+        }
+
+        async function loadAndRenderAll() {
+            try {
+                const { paths } = await apiFetch('/admin/all-content', 'GET');
+                state.paths = paths || [];
+                renderContentTree();
+                updateSelectOptions();
+            } catch (error) {
+                if (error.message.includes('Token') || error.message.includes('authorization')) {
+                    document.body.innerHTML = `<div class="text-center p-8 bg-red-900/20 border border-red-500/50 rounded-lg max-w-lg mx-auto mt-20"><h3 class="text-2xl font-bold text-red-300">인증 실패 (Invalid Token)</h3><p class="text-gray-300 mt-2">보안 토큰이 만료되었거나 유효하지 않습니다.</p><p class="text-gray-300">메인 페이지에서 다시 로그인한 후, 이 관리자 페이지를 새로고침 해주세요.</p><a href="index.html" target="_blank" class="mt-4 inline-block bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">메인 페이지로 이동하여 로그인</a></div>`;
+                } else {
+                    setFeedback(`콘텐츠 로딩 실패: ${error.message}`, 'text-red-400');
+                }
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const imageUploadFunction = (file, onSuccess, onError) => {
+                const formData = new FormData();
+                formData.append('image', file);
+                setFeedback('이미지 업로드 중...', 'text-gray-400');
+                fetch(`${API_URL}/upload/image`, {
+                    method: 'POST',
+                    headers: { 'x-auth-token': localStorage.getItem('token') },
+                    body: formData,
+                })
+                .then(res => {
+                    if (!res.ok) {
+                        return res.json().then(err => { throw new Error(err.msg || 'Upload failed.') });
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    onSuccess(data.url);
+                    setFeedback('이미지 업로드 성공!', 'text-green-400');
+                })
+                .catch(error => {
+                    console.error("Image Upload Error:", error);
+                    onError("이미지 업로드 실패: " + error.message);
+                    setFeedback(`이미지 업로드 실패: ${error.message}`, 'text-red-400');
+                });
+            };
+
+            easyMDE = new EasyMDE({ 
+                element: document.getElementById('task-content-editor'), 
+                spellChecker: false, status: false, minHeight: '150px',
+                uploadImage: true,
+                imageUploadFunction: imageUploadFunction,
+                imageAccept: "image/jpeg, image/png, image/gif, image/webp",
+                imageMaxSize: 1024 * 1024 * 5, // 5MB
+                imageTexts: {
+                    sbInit: '이미지를 드래그하거나, 클릭하여 업로드, 또는 붙여넣기 하세요.'
+                },
+                parsingConfig: {
+                    allowDOMExceptions: true
+                },
+            });
+
+            easyMDE.codemirror.on('paste', (cm, event) => {
+                const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+                for (const item of items) {
+                    if (item.kind === 'file' && item.type.startsWith('image/')) {
+                        event.preventDefault();
+                        const file = item.getAsFile();
+                        imageUploadFunction(file, 
+                            (url) => {
+                                const doc = cm.getDoc();
+                                const cursor = doc.getCursor();
+                                doc.replaceRange(`\n![](${url})\n`, cursor);
+                            },
+                            (error) => console.error(error)
+                        );
+                        return;
+                    }
+                }
+            });
+            
+            document.getElementById('custom-image-upload-btn').addEventListener('click', (e) => {
+                e.preventDefault();
+                document.getElementById('hidden-image-input').click();
+            });
+
+            document.getElementById('hidden-image-input').addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    const file = this.files[0];
+                    imageUploadFunction(file, 
+                        (url) => {
+                            const cm = easyMDE.codemirror;
+                            const doc = cm.getDoc();
+                            const cursor = cm.getDoc().getCursor();
+                            doc.replaceRange(`\n![](${url})\n`, cursor);
+                        },
+                        (error) => console.error(error)
+                    );
+                }
+                this.value = '';
+            });
+
+            const forms = { 'path': 'path-form', 'room': 'room-form', 'task': 'task-form' };
+            Object.entries(forms).forEach(([type, id]) => {
+                document.getElementById(id).addEventListener('submit', (e) => handleFormSubmit(e, type));
+            });
+            document.getElementById('content-tree').addEventListener('click', handleTreeClick);
+            document.querySelectorAll('.form-reset-btn').forEach(btn => {
+                btn.addEventListener('click', () => resetForm(btn.closest('form')));
+            });
+            document.getElementById('add-quiz-btn').addEventListener('click', () => addQuizForm());
+            document.getElementById('quiz-list-container').addEventListener('click', e => {
+                if (e.target.classList.contains('remove-quiz-btn')) {
+                    e.target.closest('.quiz-form-item').parentElement.remove();
+                    document.querySelectorAll('#quiz-list-container .quiz-form-item').forEach((item, index) => {
+                        item.querySelector('label').textContent = `퀴즈 #${index + 1}`;
+                    });
+                }
+            });
+            loadAndRenderAll();
+        });
+    </script>
+</body>
+</html>
